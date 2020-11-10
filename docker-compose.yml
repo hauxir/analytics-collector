@@ -1,0 +1,8 @@
+version: '3.5'
+services:
+  kosmi-analytics:
+    ports:
+        - "5000:5000"
+    build: .
+    volumes:
+      - ./app:/app
