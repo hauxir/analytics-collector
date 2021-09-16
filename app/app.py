@@ -1,10 +1,14 @@
-from flask import Flask, request
+from flask import Flask, Response, request
+
+import worker
+
 app = Flask(__name__)
 
 @app.route("/collect", methods=["POST"])
 def collect():
-    print(request.json)
-    return Response(status=200)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    worker.write_to_db.delay(request.json)
+    worker.collect_mixpanel.delay(request.json)
+    worker.collect_google_analytics.delay(request.json)
+
+    return Response(status=201)
