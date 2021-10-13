@@ -21,7 +21,7 @@ def connect_db():
 
 def collect_event(session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label):
     conn = connect_db()
-    values = [ ("'" + s + "'") for s in [session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label]]
+    values = [ ("'" + (s or "") + "'") for s in [session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label]]
     sql = "insert into events (session_id, user_id, ip_address, username, user_agent, referrer, country, category, action, label) values(" + ",".join(values) + ");"
     with conn.cursor() as curs:
       curs.execute(sql)
