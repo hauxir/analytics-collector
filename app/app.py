@@ -6,9 +6,7 @@ app = Flask(__name__)
 
 @app.route("/collect", methods=["POST"])
 def collect():
-
-    worker.write_to_db.delay(request.json)
-    worker.collect_mixpanel.delay(request.json)
-    worker.collect_google_analytics.delay(request.json)
-
+    batch = request.json.get("batch")
+    if batch:
+       worker.write_to_db.delay(batch)
     return Response(status=201)

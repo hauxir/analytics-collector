@@ -19,23 +19,49 @@ def connect_db():
   return psycopg2.connect(f"dbname='{POSTGRES_DATABASE}' user='{POSTGRES_USER}' host='{POSTGRES_HOST}' password='{POSTGRES_PASSWORD}'")
 
 
-def collect_event(session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label):
+def build_sql(utc_time, session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label, campaign, value):
+    if not utc_time:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+        utc_time = dt.replace(tzinfo=datetime.timezone.utc).timestamp()
+    values = [ ("'" + (s or "") + "'") for s in [session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label, campaign, value]]
+    values = ['to_timestamp(' + str(utc_time / 1000) + ')'] + values
+    return "insert into events (time, session_id, user_id, ip_address, username, user_agent, referrer, country, category, action, label, campaign, value) values(" + ",".join(values) + ");"
+
+
+def collect_events(events):
     conn = connect_db()
-    values = [ ("'" + (s or "") + "'") for s in [session_id, user_id, user_ip, username, user_agent, referrer, country, category, action, label]]
-    sql = "insert into events (session_id, user_id, ip_address, username, user_agent, referrer, country, category, action, label) values(" + ",".join(values) + ");"
+
     with conn.cursor() as curs:
-      curs.execute(sql)
+      for j in events:
+          sql = build_sql(
+              j.get("time"),
+              j["cid"],
+              j.get("uid"),
+              j["uip"],
+              j["username"],
+              j.get("ua",""),
+              j.get("dr",""),
+              j["country"],
+              j["ec"],
+              j["ea"],
+              j["el"],
+              j.get("cs"),
+              j.get("ev")
+          )
+          curs.execute(sql)
+
     conn.commit()
     conn.close()
 
 
 @app.task(bind=True)
-def write_to_db(self, j):
-  collect_event(j["cid"], j["uid"], j["uip"], j["username"], j.get("ua",""), j.get("dr",""), j["country"], j["ec"], j["ea"], j["el"])
+def write_to_db(self, events):
+  collect_events(events)
 
 
 @app.task(bind=True)
 def collect_mixpanel(self, j):
+  return
   mp = Mixpanel('1cb5fbf574011424e06511722b459b75')
   mp.track(j["uid"], j["ec"] + ": " + j["ea"], {
     "label": j["el"],
@@ -54,6 +80,7 @@ def collect_mixpanel(self, j):
 
 @app.task(bind=True)
 def collect_google_analytics(self, j):
+    return
     gadata = {k:j[k] for k in j if k not in ["username", "country"]}
     data = urllib.parse.urlencode(gadata)
     result = requests.post("https://www.google-analytics.com/collect", data, headers={
